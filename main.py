@@ -1,0 +1,49 @@
+import asyncio
+import logging
+
+from app.message_router import message_router
+from app.platforms.max import MAXPlatform
+from app.platforms.tg import TGPlatform
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logging.getLogger("asyncio").setLevel(logging.ERROR)
+logging.getLogger("aiogram").setLevel(logging.ERROR)
+
+logger = logging.getLogger("Lifecycle")
+logger.setLevel(logging.INFO)
+
+
+async def main():
+    message_router.load_rules()
+
+    tg_platform = TGPlatform()
+    max_platform = MAXPlatform()
+
+    tasks = [
+        asyncio.create_task(tg_platform.start_handling()),
+        asyncio.create_task(max_platform.start_handling()),
+    ]
+
+    logger.info(f"starting {len(tasks)} platforms:")
+
+    try:
+        await asyncio.wait(tasks)
+    except asyncio.CancelledError:
+        for task in tasks:
+            if task.cancelled():
+                continue
+            task.cancel()
+            logger.info(f"stopping {task.get_name()}")
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    logger.info("bye!")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

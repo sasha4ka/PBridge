@@ -1,0 +1,13 @@
+[
+    {
+        "from_rules": [
+            {"platform": "max", "chat_id": 103, "users": [7, 8]}
+        ],
+        "to_rules": [
+            {"platform": "tg", "chat_id": 1008},
+            {"platform": "tg", "chat_id": 10},
+            {"platform": "max", "chat_id": 1}
+        ],
+        "options": {"message_mark": ["user_id", "chat_id", "datemark"]}
+    }
+]
