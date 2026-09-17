@@ -27,7 +27,7 @@ class RuleFrom(BaseModel):
 
     platform: Platform
     chat_id: int
-    users: list[int] | None
+    users: list[int] | None = None
 
     def match(self, message: IngoingMessage) -> bool:
         if message["platform"] != self.platform:
