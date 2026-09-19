@@ -5,7 +5,15 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app.models import IngoingMessage, OutgoingMessage, RuleObject, RuleOptions
+from app.models import (
+    FieldRule,
+    IngoingMessage,
+    LinkRule,
+    OutgoingMessage,
+    RuleObject,
+    RuleOptions,
+    rule_adaptor,
+)
 from app.types import Handler, Platform
 
 logger = getLogger("Message Router")
@@ -57,7 +65,7 @@ def format_message(message: IngoingMessage, options: RuleOptions) -> tuple[str, 
     return content, mark
 
 
-def match_rule(message: IngoingMessage, rule: RuleObject) -> list[OutgoingMessage]:
+def match_field_rule(message: IngoingMessage, rule: FieldRule) -> list[OutgoingMessage]:
     matched = False
 
     for from_rule in rule.from_rules:
@@ -88,6 +96,47 @@ def match_rule(message: IngoingMessage, rule: RuleObject) -> list[OutgoingMessag
         result.append(new_message)
 
     return result
+
+
+def match_link_rule(message: IngoingMessage, rule: LinkRule) -> list[OutgoingMessage]:
+    result: list[OutgoingMessage] = []
+
+    content, mark = (
+        format_message(message, rule.options)
+        if rule.options
+        else (message["content"], "")
+    )
+
+    for i, chat_rule in enumerate(rule.chats):
+        if not chat_rule.match(message):
+            continue
+
+        for j, to_rule in enumerate(rule.chats):
+            if j == i:
+                continue
+
+            new_message = OutgoingMessage(
+                content=content,
+                mark=mark,
+                platform=to_rule.platform,
+                chat_id=to_rule.chat_id,
+                text_content_style=None,
+            )
+
+            if rule.options:
+                new_message["text_content_style"] = rule.options.text_content_style
+
+            result.append(new_message)
+
+        return result
+
+    return []
+
+
+def match_rule(message: IngoingMessage, rule: RuleObject) -> list[OutgoingMessage]:
+    if isinstance(rule, FieldRule):
+        return match_field_rule(message, rule)
+    return match_link_rule(message, rule)
 
 
 class MessageRouter:
@@ -122,7 +171,7 @@ class MessageRouter:
                 if not isinstance(json, list):
                     raise ValueError("Config root must be list")  # noqa
 
-                rules = list(map(RuleObject.model_validate, json))
+                rules = list(map(rule_adaptor.validate_python, json))
                 self.rules = rules
             except ValidationError as err:
                 raise ValueError(f"Config is invalid: {err.errors()}")
