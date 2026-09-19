@@ -1,16 +1,12 @@
 import asyncio
 import logging
 
+import app.logging_setup
 from app.message_router import message_router
 from app.platforms.max import MAXPlatform
 from app.platforms.tg import TGPlatform
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logging.getLogger("asyncio").setLevel(logging.ERROR)
-logging.getLogger("aiogram").setLevel(logging.ERROR)
+app.logging_setup.setup()
 
 logger = logging.getLogger("Lifecycle")
 logger.setLevel(logging.INFO)
