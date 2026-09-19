@@ -55,9 +55,13 @@ class MAXPlatform(BasePlatform):
         )
 
     async def _send_message(self, outgoing_message: OutgoingMessage):
+        if outgoing_message["mark"]:
+            text = f"{outgoing_message['content']}\n\n{outgoing_message['mark']}"
+        else:
+            text = outgoing_message["content"]
         await self.bot.send_message(
             chat_id=outgoing_message["chat_id"],
-            text=outgoing_message["content"] + outgoing_message["mark"],
+            text=text,
         )
 
     async def _bot_started_handler(self, event: BotStarted):
