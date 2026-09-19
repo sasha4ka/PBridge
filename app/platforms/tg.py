@@ -2,7 +2,10 @@ import asyncio
 
 from aiogram import Bot, Dispatcher, Router
 from aiogram.client.session.aiohttp import AiohttpSession
-from aiogram.filters import Command
+from aiogram.enums import ParseMode
+from aiogram.filters import (
+    Command,
+)
 from aiogram.types import Message
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -30,30 +33,48 @@ class TGPlatform(BasePlatform):
         self.dispatcher.include_router(self.router)
 
     async def _handle_incoming_message(self, message: Message):
-        if message.from_user is None:
-            return
-
-        await message_router.handle_message(
-            IngoingMessage(
-                platform="tg",
-                content=message.text or "",
-                timestamp=message.date,
-                chat_id=message.chat.id,
-                chat_name=message.chat.full_name,
-                user_id=message.from_user.id,
-                user_name=message.from_user.username,
-            )
-        )
+        match message.chat.type:
+            case "group" | "private" | "supergroup":
+                if message.from_user is None:
+                    return
+                await message_router.handle_message(
+                    IngoingMessage(
+                        platform="tg",
+                        content=message.text or "",
+                        timestamp=message.date,
+                        chat_id=message.chat.id,
+                        chat_name=message.chat.full_name,
+                        user_id=message.from_user.id,
+                        user_name=message.from_user.username,
+                    )
+                )
+            case "channel":
+                await message_router.handle_message(
+                    IngoingMessage(
+                        platform="tg",
+                        content=message.text or "",
+                        timestamp=message.date,
+                        chat_id=message.chat.id,
+                        chat_name=message.chat.full_name,
+                        user_id=None,
+                        user_name=None,
+                    )
+                )
+            case _:
+                pass
 
     async def _send_message(self, outgoing_message: OutgoingMessage):
         await self.bot.send_message(
             chat_id=outgoing_message["chat_id"],
-            text=outgoing_message["content"],
+            text=f"<blockquote>{outgoing_message['content']}</blockquote>{outgoing_message['mark']}",
+            parse_mode=ParseMode.HTML,
         )
 
     async def start_handling(self):
         @self.router.message(Command("start"))
         async def start_command(message: Message):
+            if not message.chat.is_direct_messages:
+                return
             await message.answer(
                 "Telegram bridge is active. Send a message to forward it to the configured destinations."
             )
@@ -61,6 +82,18 @@ class TGPlatform(BasePlatform):
         @self.router.message()
         async def default_message(message: Message):
             await self._handle_incoming_message(message)
+
+        @self.router.channel_post()
+        async def channel_post(message: Message):
+            await self._handle_incoming_message(message)
+
+        @self.dispatcher.message(Command("reload_rules"))
+        async def reload_rules(message: Message):
+            if message.from_user and message.from_user.id == self.settings.tg_admin_id:
+                took = message_router.load_rules()
+                await message.answer(
+                    f"Reload took {took:.3f}s, number of rules: {len(message_router.rules or [])}"
+                )
 
         message_router.register_handler("tg", self._send_message)
 
