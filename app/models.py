@@ -12,12 +12,13 @@ class IngoingMessage(TypedDict):
     timestamp: datetime
     chat_id: int
     chat_name: str | None
-    user_id: int
+    user_id: int | None
     user_name: str | None
 
 
 class OutgoingMessage(TypedDict):
     content: str
+    mark: str
     platform: Platform
     chat_id: int
 
