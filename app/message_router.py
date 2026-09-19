@@ -1,5 +1,6 @@
 from json import JSONDecodeError, load
-from logging import INFO, getLogger
+from logging import DEBUG, getLogger
+from time import time
 from typing import Any
 
 from pydantic import ValidationError
@@ -8,21 +9,26 @@ from app.models import IngoingMessage, OutgoingMessage, RuleObject, RuleOptions
 from app.types import Handler, Platform
 
 logger = getLogger("Message Router")
-logger.setLevel(INFO)
+logger.setLevel(DEBUG)
 counter = 0
 
 
-def format_message(message: IngoingMessage, options: RuleOptions) -> str:
+def format_message(message: IngoingMessage, options: RuleOptions) -> tuple[str, str]:
     if not options.message_mark:
-        return message["content"]
+        return message["content"], ""
 
     content = message["content"]
-    content += "\n"
+    mark = ""
 
     for mark_item in options.message_mark:
         match mark_item:
             case "user_id":
-                content += f"\nUSER_ID: {message['user_id']}"
+                user_id = message.get("user_id")
+                if user_id is None:
+                    logger.warning(
+                        f"user_id is required by rule but not set in IngoingMessage object {message}"
+                    )
+                mark += f"USER_ID: {user_id}\n"
             case "user_name":
                 user_name = message.get("user_name")
                 if user_name is None:
@@ -30,9 +36,9 @@ def format_message(message: IngoingMessage, options: RuleOptions) -> str:
                         f"user_name is required by rule but not set in IngoingMessage object {message}"
                     )
                 else:
-                    content += f"\nBY: {user_name}"
+                    mark += f"BY: {user_name}\n"
             case "chat_id":
-                content += f"\nCHAT_ID: {message['chat_id']}"
+                mark += f"CHAT_ID: {message['chat_id']}\n"
             case "chat_name":
                 chat_name = message.get("chat_name")
                 if chat_name is None:
@@ -40,14 +46,15 @@ def format_message(message: IngoingMessage, options: RuleOptions) -> str:
                         f"chat_name is required by rule but not set in IngoingMessage object {message}",
                     )
                 else:
-                    content += f"\nCHAT_NAME: {chat_name}"
+                    mark += f"CHAT_NAME: {chat_name}\n"
             case "datemark":
                 send_at = message["timestamp"].strftime(options.datemark_format)
-                content += f"\nAT: {send_at}"
+                mark += f"AT: {send_at}\n"
             case "platform":
-                content += f"\nPLATFORM: {message['platform']}"
+                mark += f"PLATFORM: {message['platform']}\n"
+    mark = mark.removesuffix("\n")
 
-    return content
+    return content, mark
 
 
 def match_rule(message: IngoingMessage, rule: RuleObject) -> list[OutgoingMessage]:
@@ -60,14 +67,19 @@ def match_rule(message: IngoingMessage, rule: RuleObject) -> list[OutgoingMessag
         return []
 
     result: list[OutgoingMessage] = []
-    content = (
-        format_message(message, rule.options) if rule.options else message["content"]
+    content, mark = (
+        format_message(message, rule.options)
+        if rule.options
+        else (message["content"], "")
     )
 
     for to_rule in rule.to_rules:
         result.append(
             OutgoingMessage(
-                content=content, platform=to_rule.platform, chat_id=to_rule.chat_id
+                content=content,
+                mark=mark,
+                platform=to_rule.platform,
+                chat_id=to_rule.chat_id,
             )
         )
 
@@ -82,7 +94,23 @@ class MessageRouter:
         self.rules = None
         self.handlers = {}
 
-    def load_rules(self):
+    def load_rules(self) -> float:
+        otime = time()
+        self._load_rules()
+        took = time() - otime
+
+        if self.rules:
+            logger.info(
+                f"reloading rules took {took:.4f}s. loaded {len(self.rules)} rules"
+            )
+            return took
+
+        logger.info(
+            f"loading rules took {took:.4f}s. loaded {len(self.rules or [])} rules"
+        )
+        return took
+
+    def _load_rules(self):
         with open("rules.json", "r") as file:
             try:
                 json: list[dict[str, Any]] | dict[str, Any] = load(file)
@@ -97,7 +125,6 @@ class MessageRouter:
 
             except JSONDecodeError as err:
                 raise ValueError(f"Config must be valid json file: {err}")
-        logger.info(f"loaded {len(self.rules)} routing rules")
 
     def get_rules(self) -> list[RuleObject]:
         if self.rules is None:
@@ -113,7 +140,10 @@ class MessageRouter:
         for rule in rules:
             messages.extend(match_rule(message, rule))
 
-        logger.info(f"Routed message#{counter} {message} to {len(messages)} chats")
+        if logger.level == DEBUG:
+            logger.debug(f"Routed message#{counter} {message} to {len(messages)} chats")
+        else:
+            logger.info(f"Routed message#{counter} to {len(messages)} chats")
         counter += 1
 
         return messages
