@@ -74,14 +74,18 @@ def match_rule(message: IngoingMessage, rule: RuleObject) -> list[OutgoingMessag
     )
 
     for to_rule in rule.to_rules:
-        result.append(
-            OutgoingMessage(
-                content=content,
-                mark=mark,
-                platform=to_rule.platform,
-                chat_id=to_rule.chat_id,
-            )
+        new_message = OutgoingMessage(
+            content=content,
+            mark=mark,
+            platform=to_rule.platform,
+            chat_id=to_rule.chat_id,
+            text_content_style=None,
         )
+
+        if rule.options:
+            new_message["text_content_style"] = rule.options.text_content_style
+
+        result.append(new_message)
 
     return result
 

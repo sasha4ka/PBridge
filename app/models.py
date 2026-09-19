@@ -21,6 +21,7 @@ class OutgoingMessage(TypedDict):
     mark: str
     platform: Platform
     chat_id: int
+    text_content_style: Literal["quoted", "plain"] | None
 
 
 class RuleFrom(BaseModel):
@@ -58,6 +59,8 @@ class RuleOptions(BaseModel):
         ]
         | None
     ) = None
+
+    text_content_style: Literal["quoted", "plain"] = "plain"
 
     datemark_format: str = "%d-%m-%Y %H:%M:%S"
 

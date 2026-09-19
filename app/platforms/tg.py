@@ -64,9 +64,17 @@ class TGPlatform(BasePlatform):
                 pass
 
     async def _send_message(self, outgoing_message: OutgoingMessage):
+        if outgoing_message["mark"]:
+            text = f"{outgoing_message['content']}\n\n{outgoing_message['mark']}"
+        else:
+            text = outgoing_message["content"]
+
+        if outgoing_message.get("text_content_style") == "quoted":
+            text = f"<blockquote>{outgoing_message['content']}</blockquote>{outgoing_message['mark']}"
+
         await self.bot.send_message(
             chat_id=outgoing_message["chat_id"],
-            text=f"<blockquote>{outgoing_message['content']}</blockquote>{outgoing_message['mark']}",
+            text=text,
             parse_mode=ParseMode.HTML,
         )
 
