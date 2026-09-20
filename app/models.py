@@ -14,6 +14,7 @@ class IngoingMessage(TypedDict):
     chat_name: str | None
     user_id: int | None
     user_name: str | None
+    attachments: list[tuple[Platform, str]] | None
 
 
 class OutgoingMessage(TypedDict):
@@ -22,6 +23,7 @@ class OutgoingMessage(TypedDict):
     platform: Platform
     chat_id: int
     text_content_style: Literal["quoted", "plain"] | None
+    attachments: list[tuple[Platform, str]] | None
 
 
 class RuleFrom(BaseModel):

@@ -51,6 +51,7 @@ class MAXPlatform(BasePlatform):
                 chat_name=chat_name,
                 user_id=message.sender.user_id,
                 user_name=message.sender.full_name,
+                attachments=None,
             )
         )
 
@@ -89,12 +90,12 @@ class MAXPlatform(BasePlatform):
     async def start_handling(self):
         message_router.register_handler("max", self._send_message)
 
-        self.dispatcher.bot_started.register(self._bot_started_handler)
+        self.dispatcher.bot_started.register(self._bot_started_handler)  # type: ignore
 
-        self.dispatcher.message_created.register(self._incoming_message_handler)
+        self.dispatcher.message_created.register(self._incoming_message_handler)  # type: ignore
 
         if self.settings.max_admin_id is not None:
-            self.dispatcher.bot_added.register(self._bot_added_to_group_handler)
+            self.dispatcher.bot_added.register(self._bot_added_to_group_handler)  # type: ignore
 
         try:
             await self.dispatcher.start_polling(self.bot)

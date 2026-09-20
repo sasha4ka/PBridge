@@ -88,6 +88,7 @@ def match_field_rule(message: IngoingMessage, rule: FieldRule) -> list[OutgoingM
             platform=to_rule.platform,
             chat_id=to_rule.chat_id,
             text_content_style=None,
+            attachments=message["attachments"],
         )
 
         if rule.options:
@@ -121,6 +122,7 @@ def match_link_rule(message: IngoingMessage, rule: LinkRule) -> list[OutgoingMes
                 platform=to_rule.platform,
                 chat_id=to_rule.chat_id,
                 text_content_style=None,
+                attachments=message["attachments"],
             )
 
             if rule.options:

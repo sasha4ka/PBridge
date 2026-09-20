@@ -46,6 +46,7 @@ class TGPlatform(BasePlatform):
                         chat_name=message.chat.full_name,
                         user_id=message.from_user.id,
                         user_name=message.from_user.username,
+                        attachments=None,
                     )
                 )
             case "channel":
@@ -58,6 +59,7 @@ class TGPlatform(BasePlatform):
                         chat_name=message.chat.full_name,
                         user_id=None,
                         user_name=None,
+                        attachments=None,
                     )
                 )
             case _:
