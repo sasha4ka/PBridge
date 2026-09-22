@@ -29,6 +29,18 @@ wheels = [
 ]
 
 [[package]]
+name = "aiogram-mediagroup-handle"
+version = "0.1.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiogram" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a4/02/9c4621de0aea8366fa40363ca9a2b582456c4e773e42c5118296c73e4966/aiogram_mediagroup_handle-0.1.3.tar.gz", hash = "sha256:0edc83010bc783c20bc411cc1733b6be53c43da347b204428939822fc6dd507a", size = 45253, upload-time = "2025-02-21T16:56:10.929Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/68/49/3e791f50ebb704f1fa147abd57a78ea3e9b5c95e700c7b5f35fb5384164a/aiogram_mediagroup_handle-0.1.3-py3-none-any.whl", hash = "sha256:e4b9a010c5b9a7378397d9a7366c74b791a968e986e8a0f76714798919dccc1c", size = 8072, upload-time = "2025-02-21T16:56:09.435Z" },
+]
+
+[[package]]
 name = "aiohappyeyeballs"
 version = "2.7.1"
 source = { registry = "https://pypi.org/simple" }
@@ -578,6 +590,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },
+    { name = "aiogram-mediagroup-handle" },
     { name = "aiohttp-socks" },
     { name = "maxapi" },
     { name = "pydantic" },
@@ -592,6 +605,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiogram", specifier = ">=3.31.0" },
+    { name = "aiogram-mediagroup-handle", specifier = ">=0.1.3" },
     { name = "aiohttp-socks", specifier = ">=0.12.0" },
     { name = "maxapi", specifier = ">=1.2.2" },
     { name = "pydantic", specifier = ">=2.13.5" },

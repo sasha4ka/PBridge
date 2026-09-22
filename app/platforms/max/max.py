@@ -8,8 +8,11 @@ from maxapi.types import BotAdded, BotStarted, MessageCreated
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.abc import BasePlatform
+from app.attachments import Attachment
 from app.message_router import message_router
 from app.models import IngoingMessage, OutgoingMessage
+from app.platforms.max.utils import Utils
+from app.types import MessageType
 
 logging.getLogger("dispatcher").setLevel(logging.ERROR)
 
@@ -26,44 +29,93 @@ class MAXPlatform(BasePlatform):
         self.settings = settings or MAXSettings()  # type: ignore
         self.bot = Bot(token=self.settings.max_api_token)
         self.dispatcher = Dispatcher()
+        self.utils = Utils(self.bot)
 
     async def _incoming_message_handler(self, event: MessageCreated):
         message = event.message
 
         if message.sender is None:
+            user_id = None
+            user_name = None
+        else:
+            user_id = message.sender.user_id
+            user_name = message.sender.full_name
+
+        if not message.body:
             return
 
-        message_content = (message.body.text or "") if message.body else ""
+        text_content = message.body.text
         timestamp = datetime.fromtimestamp(message.timestamp / 1000, UTC)
 
         chat_name: str = "Direct"
 
-        if message.recipient.chat_type == ChatType.CHAT:
+        if message.recipient.chat_type != ChatType.DIALOG:
             chat = await self.bot.get_chat_by_id(message.recipient.chat_id or 0)
             chat_name = chat.title or "Unknown chat"
+
+        attachments: list[Attachment] = []
+
+        if message.body.attachments:
+            for max_atch in message.body.attachments:
+                attachment = await self.utils.prepare_attachment(max_atch)
+                if attachment is None:
+                    continue
+                attachments.append(attachment)
+
+        message_type: MessageType = "text"
+
+        if len(attachments) == 1:
+            match attachments[0].type:
+                case "photo":
+                    message_type = "photo"
+                case "audio":
+                    message_type = "audio"
+                case "document":
+                    message_type = "document"
+                case "video":
+                    message_type = "video"
+        if len(attachments) > 1:
+            message_type = "media_group"
 
         await message_router.handle_message(
             IngoingMessage(
                 platform="max",
-                content=message_content,
+                text_content=text_content,
+                attachments=attachments,
+                message_type=message_type,
                 timestamp=timestamp,
-                chat_id=message.recipient.chat_id or message.recipient.user_id or 0,
+                chat_id=message.recipient.chat_id or 0,
                 chat_name=chat_name,
-                user_id=message.sender.user_id,
-                user_name=message.sender.full_name,
-                attachments=None,
+                user_id=user_id,
+                user_name=user_name,
             )
         )
 
     async def _send_message(self, outgoing_message: OutgoingMessage):
+        blocks: list[str] = []
+
+        if outgoing_message["ingoing_message"]["text_content"]:
+            blocks.append(
+                f"<blockquote>{outgoing_message['ingoing_message']['text_content']}</blockquote>"
+                if outgoing_message["text_content_style"] == "quoted"
+                else outgoing_message["ingoing_message"]["text_content"]
+            )
         if outgoing_message["mark"]:
-            text = f"{outgoing_message['content']}\n\n{outgoing_message['mark']}"
-        else:
-            text = outgoing_message["content"]
-        await self.bot.send_message(
-            chat_id=outgoing_message["chat_id"],
-            text=text,
-        )
+            blocks.append(outgoing_message["mark"])
+        if outgoing_message["ingoing_message"]["message_type"] != "text":
+            blocks.append(
+                "\n".join(
+                    [
+                        self.utils.serialize(attachment)
+                        for attachment in outgoing_message["ingoing_message"][
+                            "attachments"
+                        ]
+                    ]
+                )
+            )
+
+        text = "\n\n".join(blocks)
+        await self.bot.send_message(chat_id=outgoing_message["chat_id"], text=text)
 
     async def _bot_started_handler(self, event: BotStarted):
         await self.bot.send_message(
@@ -100,7 +152,7 @@ class MAXPlatform(BasePlatform):
         try:
             await self.dispatcher.start_polling(self.bot)
         except asyncio.CancelledError:
+            await self.dispatcher.stop_polling()
             if self.bot.session:
                 await self.bot.session.close()
-            await self.dispatcher.stop_polling()
             raise

@@ -26,17 +26,13 @@ async def main():
     logger.info(f"starting {len(tasks)} platforms:")
 
     try:
-        await asyncio.wait(tasks)
+        await asyncio.gather(*tasks)
     except asyncio.CancelledError:
         for task in tasks:
-            if task.cancelled():
-                continue
-            task.cancel()
-            logger.info(f"stopping {task.get_name()}")
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+            if not task.done():
+                task.cancel()
+                logger.info(f"stopping {task.get_name()}")
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     logger.info("bye!")
 

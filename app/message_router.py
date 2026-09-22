@@ -21,48 +21,56 @@ logger.setLevel(DEBUG)
 counter = 0
 
 
-def format_message(message: IngoingMessage, options: RuleOptions) -> tuple[str, str]:
-    if not options.message_mark:
-        return message["content"], ""
+def format_message(
+    message: OutgoingMessage, options: RuleOptions | None
+) -> OutgoingMessage:
+    if options is None:
+        return message
 
-    content = message["content"]
-    mark = ""
+    if options.text_content_style:
+        message["text_content_style"] = options.text_content_style
 
-    for mark_item in options.message_mark:
-        match mark_item:
-            case "user_id":
-                user_id = message.get("user_id")
-                if user_id is None:
-                    logger.warning(
-                        f"user_id is required by rule but not set in IngoingMessage object {message}"
-                    )
-                mark += f"USER_ID: {user_id}\n"
-            case "user_name":
-                user_name = message.get("user_name")
-                if user_name is None:
-                    logger.warning(
-                        f"user_name is required by rule but not set in IngoingMessage object {message}"
-                    )
-                else:
-                    mark += f"BY: {user_name}\n"
-            case "chat_id":
-                mark += f"CHAT_ID: {message['chat_id']}\n"
-            case "chat_name":
-                chat_name = message.get("chat_name")
-                if chat_name is None:
-                    logger.warning(
-                        f"chat_name is required by rule but not set in IngoingMessage object {message}",
-                    )
-                else:
-                    mark += f"CHAT_NAME: {chat_name}\n"
-            case "datemark":
-                send_at = message["timestamp"].strftime(options.datemark_format)
-                mark += f"AT: {send_at}\n"
-            case "platform":
-                mark += f"PLATFORM: {message['platform']}\n"
-    mark = mark.removesuffix("\n")
+    if options.message_mark:
+        mark = ""
+        ingoing = message["ingoing_message"]
 
-    return content, mark
+        for mark_item in options.message_mark:
+            match mark_item:
+                case "user_id":
+                    user_id = ingoing.get("user_id")
+                    if user_id is None:
+                        logger.warning(
+                            f"user_id is required by rule but not set in IngoingMessage object {message}"
+                        )
+                    mark += f"USER_ID: {user_id}\n"
+                case "user_name":
+                    user_name = ingoing.get("user_name")
+                    if user_name is None:
+                        logger.warning(
+                            f"user_name is required by rule but not set in IngoingMessage object {message}"
+                        )
+                    else:
+                        mark += f"BY: {user_name}\n"
+                case "chat_id":
+                    mark += f"CHAT_ID: {message['chat_id']}\n"
+                case "chat_name":
+                    chat_name = ingoing.get("chat_name")
+                    if chat_name is None:
+                        logger.warning(
+                            f"chat_name is required by rule but not set in IngoingMessage object {message}",
+                        )
+                    else:
+                        mark += f"CHAT_NAME: {chat_name}\n"
+                case "datemark":
+                    send_at = ingoing["timestamp"].strftime(options.datemark_format)
+                    mark += f"AT: {send_at}\n"
+                case "platform":
+                    mark += f"PLATFORM: {message['platform']}\n"
+        mark = mark.removesuffix("\n")
+
+        message["mark"] = mark
+
+    return message
 
 
 def match_field_rule(message: IngoingMessage, rule: FieldRule) -> list[OutgoingMessage]:
@@ -75,24 +83,15 @@ def match_field_rule(message: IngoingMessage, rule: FieldRule) -> list[OutgoingM
         return []
 
     result: list[OutgoingMessage] = []
-    content, mark = (
-        format_message(message, rule.options)
-        if rule.options
-        else (message["content"], "")
-    )
 
     for to_rule in rule.to_rules:
         new_message = OutgoingMessage(
-            content=content,
-            mark=mark,
+            ingoing_message=message,
             platform=to_rule.platform,
             chat_id=to_rule.chat_id,
+            mark="",
             text_content_style=None,
-            attachments=message["attachments"],
         )
-
-        if rule.options:
-            new_message["text_content_style"] = rule.options.text_content_style
 
         result.append(new_message)
 
@@ -101,12 +100,6 @@ def match_field_rule(message: IngoingMessage, rule: FieldRule) -> list[OutgoingM
 
 def match_link_rule(message: IngoingMessage, rule: LinkRule) -> list[OutgoingMessage]:
     result: list[OutgoingMessage] = []
-
-    content, mark = (
-        format_message(message, rule.options)
-        if rule.options
-        else (message["content"], "")
-    )
 
     for i, chat_rule in enumerate(rule.chats):
         if not chat_rule.match(message):
@@ -117,12 +110,11 @@ def match_link_rule(message: IngoingMessage, rule: LinkRule) -> list[OutgoingMes
                 continue
 
             new_message = OutgoingMessage(
-                content=content,
-                mark=mark,
+                ingoing_message=message,
                 platform=to_rule.platform,
                 chat_id=to_rule.chat_id,
+                mark="",
                 text_content_style=None,
-                attachments=message["attachments"],
             )
 
             if rule.options:
@@ -137,8 +129,13 @@ def match_link_rule(message: IngoingMessage, rule: LinkRule) -> list[OutgoingMes
 
 def match_rule(message: IngoingMessage, rule: RuleObject) -> list[OutgoingMessage]:
     if isinstance(rule, FieldRule):
-        return match_field_rule(message, rule)
-    return match_link_rule(message, rule)
+        messages = match_field_rule(message, rule)
+    else:
+        messages = match_link_rule(message, rule)
+
+    messages = [format_message(m, rule.options) for m in messages]
+
+    return messages
 
 
 class MessageRouter:

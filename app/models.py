@@ -3,27 +3,32 @@ from typing import Annotated, Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
-from app.types import Platform
+from app.attachments import Attachment
+from app.types import MessageType, Platform
 
 
 class IngoingMessage(TypedDict):
     platform: Platform
-    content: str
+
+    text_content: str | None
+    attachments: list[Attachment]
+    message_type: MessageType
+
     timestamp: datetime
     chat_id: int
     chat_name: str | None
     user_id: int | None
     user_name: str | None
-    attachments: list[tuple[Platform, str]] | None
 
 
 class OutgoingMessage(TypedDict):
-    content: str
-    mark: str
+    ingoing_message: IngoingMessage
+
     platform: Platform
     chat_id: int
+
+    mark: str
     text_content_style: Literal["quoted", "plain"] | None
-    attachments: list[tuple[Platform, str]] | None
 
 
 class RuleFrom(BaseModel):
